@@ -1,0 +1,8 @@
+# Bridge and LAN ports
+/interface bridge
+add name={{ bridge.name }} protocol-mode={{ bridge.protocol }} vlan-filtering={{ "yes" if bridge.vlan_filtering else "no" }}
+
+{% for iface in lan_ifaces %}
+/interface bridge port
+add bridge={{ bridge.name }} interface={{ iface }}
+{% endfor %}

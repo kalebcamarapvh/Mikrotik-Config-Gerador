@@ -1,0 +1,15 @@
+{% include "v6/firewall_basic.rsc.j2" %}
+
+/ip firewall filter
+{% if rules.port_scan_detection %}
+add chain=input protocol=tcp psd=21,3s,3,1 action=drop comment="mtk-auto port scan"
+{% endif %}
+{% if rules.ssh_bruteforce %}
+add chain=input protocol=tcp dst-port=22 connection-limit=3,32 action=drop comment="mtk-auto ssh bruteforce"
+{% endif %}
+{% if rules.bogon_drop %}
+add chain=input in-interface={{ wan_iface }} src-address-list=not_in_internet action=drop comment="mtk-auto bogon drop"
+{% endif %}
+{% if rules.rate_limit_new %}
+add chain=input connection-state=new limit=50,5:packet action=accept comment="mtk-auto rate limit new"
+{% endif %}

@@ -1,0 +1,5 @@
+# VLAN interfaces for RouterOS v6
+{% for vlan in vlans %}
+/interface vlan
+add name={{ vlan.interface_name }} vlan-id={{ vlan.vlan_id }} interface={{ bridge.name }}
+{% endfor %}

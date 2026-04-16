@@ -1,0 +1,8 @@
+# VLAN interfaces for RouterOS v7
+{% for vlan in vlans %}
+/interface vlan
+add name={{ vlan.interface_name }} vlan-id={{ vlan.vlan_id }} interface={{ bridge.name }}
+
+/interface bridge vlan
+add bridge={{ bridge.name }} vlan-ids={{ vlan.vlan_id }} tagged={{ ([bridge.name] + vlan.tagged_ports)|join(",") }}{% if vlan.untagged_ports %} untagged={{ vlan.untagged_ports|join(",") }}{% endif %}
+{% endfor %}

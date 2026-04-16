@@ -1,0 +1,9 @@
+{% include "v6/firewall_medium.rsc.j2" %}
+
+/ip firewall filter
+{% if rules.explicit_forward %}
+add chain=forward action=drop comment="mtk-auto default forward drop"
+{% endif %}
+{% if rules.log_drops %}
+add chain=input in-interface={{ wan_iface }} action=log log-prefix="MTK-DROP " comment="mtk-auto log drops"
+{% endif %}

@@ -1,0 +1,3 @@
+# PPPoE client
+/interface pppoe-client
+add name=pppoe-out1 interface={{ pppoe.wan_iface }} user="{{ pppoe.username }}" password="{{ pppoe.password }}"{% if pppoe.service_name %} service-name="{{ pppoe.service_name }}"{% endif %} add-default-route=yes use-peer-dns=yes disabled=no

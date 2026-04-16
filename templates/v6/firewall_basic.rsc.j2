@@ -1,0 +1,20 @@
+/ip firewall filter
+{% if rules.accept_established %}
+add chain=input connection-state=established,related action=accept comment="mtk-auto accept established input"
+add chain=forward connection-state=established,related action=accept comment="mtk-auto accept established forward"
+{% endif %}
+{% if rules.drop_invalid %}
+add chain=input connection-state=invalid action=drop comment="mtk-auto drop invalid"
+{% endif %}
+{% if rules.accept_icmp %}
+add chain=input protocol=icmp action=accept comment="mtk-auto accept icmp"
+{% endif %}
+{% if rules.accept_lan_input %}
+add chain=input in-interface={{ bridge.name }} action=accept comment="mtk-auto accept lan input"
+{% endif %}
+add chain=input in-interface={{ wan_iface }} action=drop comment="mtk-auto drop wan input"
+
+{% if rules.masquerade %}
+/ip firewall nat
+add chain=srcnat out-interface={{ wan_iface }} action=masquerade comment="mtk-auto nat masquerade"
+{% endif %}
