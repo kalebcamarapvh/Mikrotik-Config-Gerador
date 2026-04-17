@@ -6,12 +6,13 @@ on:
     branches:
       - main
       - master
-    tags:
-      - "v*"
   pull_request:
+  release:
+    types:
+      - published
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -24,15 +25,15 @@ jobs:
           - os: ubuntu-latest
             label: Linux
             build_script: ./build.sh
-            artifact_name: mikrotik-config-generator-linux
+            package_name: mikrotik-config-generator-linux.tar.gz
           - os: macos-latest
             label: macOS
             build_script: ./build-macos.sh
-            artifact_name: mikrotik-config-generator-macos
+            package_name: mikrotik-config-generator-macos.zip
           - os: windows-latest
             label: Windows
             build_script: .\build.bat
-            artifact_name: mikrotik-config-generator-windows
+            package_name: mikrotik-config-generator-windows.zip
 
     steps:
       - name: Checkout source
@@ -60,10 +61,40 @@ jobs:
       - name: Build application
         run: ${{ matrix.build_script }}
 
-      - name: Upload artifact
+      - name: Package Linux build
+        if: runner.os == 'Linux'
+        run: |
+          mkdir -p release-assets
+          tar -C dist -czf "release-assets/${{ matrix.package_name }}" "MikroTik Config Generator"
+
+      - name: Package macOS build
+        if: runner.os == 'macOS'
+        run: |
+          mkdir -p release-assets
+          cd dist
+          zip -r "../release-assets/${{ matrix.package_name }}" "MikroTik Config Generator"
+
+      - name: Package Windows build
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          New-Item -ItemType Directory -Force -Path release-assets | Out-Null
+          Compress-Archive -Path "dist/MikroTik Config Generator.exe" -DestinationPath "release-assets/${{ matrix.package_name }}" -Force
+
+      - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.artifact_name }}
-          path: dist/*
+          name: ${{ matrix.package_name }}
+          path: release-assets/${{ matrix.package_name }}
           if-no-files-found: error
           retention-days: 14
+
+      - name: Upload asset to GitHub Release
+        if: github.event_name == 'release'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          PACKAGE_NAME: ${{ matrix.package_name }}
+        run: |
+          gh release upload "${RELEASE_TAG}" "release-assets/${PACKAGE_NAME}" --clobber
