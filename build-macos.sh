@@ -15,7 +15,14 @@ if ! "${PYTHON_BIN}" -c "import tkinter" >/dev/null 2>&1; then
   exit 1
 fi
 
+mkdir -p "${PROJECT_DIR}/packages/macos"
+
 "${PYTHON_BIN}" -m PyInstaller --noconfirm --clean --onefile --windowed \
   --name "MikroTik Config Generator" \
   --add-data "templates:templates" \
   main.py
+
+cd "${PROJECT_DIR}/dist"
+zip -r "../packages/macos/mikrotik-config-generator-macos.zip" "MikroTik Config Generator"
+
+echo "macOS package created at: ${PROJECT_DIR}/packages/macos/mikrotik-config-generator-macos.zip"

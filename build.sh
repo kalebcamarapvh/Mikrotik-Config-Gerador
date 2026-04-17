@@ -15,7 +15,15 @@ if ! "${PYTHON_BIN}" -c "import tkinter" >/dev/null 2>&1; then
   exit 1
 fi
 
+mkdir -p "${PROJECT_DIR}/packages/linux"
+
 "${PYTHON_BIN}" -m PyInstaller --noconfirm --clean --onefile --windowed \
   --name "MikroTik Config Generator" \
   --add-data "templates:templates" \
   main.py
+
+tar -C "${PROJECT_DIR}/dist" -czf \
+  "${PROJECT_DIR}/packages/linux/mikrotik-config-generator-linux.tar.gz" \
+  "MikroTik Config Generator"
+
+echo "Linux package created at: ${PROJECT_DIR}/packages/linux/mikrotik-config-generator-linux.tar.gz"

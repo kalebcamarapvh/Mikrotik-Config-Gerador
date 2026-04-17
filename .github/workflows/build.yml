@@ -6,6 +6,8 @@ on:
     branches:
       - main
       - master
+    tags:
+      - "v*"
   pull_request:
   release:
     types:
@@ -25,14 +27,12 @@ jobs:
           - os: ubuntu-latest
             label: Linux
             build_script: ./build.sh
+            package_dir: packages/linux
             package_name: mikrotik-config-generator-linux.tar.gz
-          - os: macos-latest
-            label: macOS
-            build_script: ./build-macos.sh
-            package_name: mikrotik-config-generator-macos.zip
           - os: windows-latest
             label: Windows
             build_script: .\build.bat
+            package_dir: packages/windows
             package_name: mikrotik-config-generator-windows.zip
 
     steps:
@@ -61,40 +61,27 @@ jobs:
       - name: Build application
         run: ${{ matrix.build_script }}
 
-      - name: Package Linux build
-        if: runner.os == 'Linux'
-        run: |
-          mkdir -p release-assets
-          tar -C dist -czf "release-assets/${{ matrix.package_name }}" "MikroTik Config Generator"
-
-      - name: Package macOS build
-        if: runner.os == 'macOS'
-        run: |
-          mkdir -p release-assets
-          cd dist
-          zip -r "../release-assets/${{ matrix.package_name }}" "MikroTik Config Generator"
-
-      - name: Package Windows build
-        if: runner.os == 'Windows'
-        shell: powershell
-        run: |
-          New-Item -ItemType Directory -Force -Path release-assets | Out-Null
-          Compress-Archive -Path "dist/MikroTik Config Generator.exe" -DestinationPath "release-assets/${{ matrix.package_name }}" -Force
-
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.package_name }}
-          path: release-assets/${{ matrix.package_name }}
+          path: ${{ matrix.package_dir }}/${{ matrix.package_name }}
           if-no-files-found: error
           retention-days: 14
 
       - name: Upload asset to GitHub Release
-        if: github.event_name == 'release'
+        if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'release'
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RELEASE_TAG: ${{ github.event.release.tag_name }}
           PACKAGE_NAME: ${{ matrix.package_name }}
         run: |
-          gh release upload "${RELEASE_TAG}" "release-assets/${PACKAGE_NAME}" --clobber
+          if [[ "${GITHUB_EVENT_NAME}" == "release" ]]; then
+            RELEASE_TAG="${{ github.event.release.tag_name }}"
+          else
+            RELEASE_TAG="${GITHUB_REF#refs/tags/}"
+            gh release view "${RELEASE_TAG}" >/dev/null 2>&1 || \
+              gh release create "${RELEASE_TAG}" --title "${RELEASE_TAG}" --notes "Release ${RELEASE_TAG}"
+          fi
+
+          gh release upload "${RELEASE_TAG}" "${{ matrix.package_dir }}/${PACKAGE_NAME}" --clobber
