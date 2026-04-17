@@ -175,6 +175,44 @@ Depois de subir o projeto para o GitHub, voce pode:
 
 Assim, o usuario final so baixa o arquivo do sistema dele e executa.
 
+## Publicar arquivos em Releases do GitHub
+
+O workflow tambem pode anexar automaticamente os pacotes na pagina de `Releases`.
+
+Arquivos gerados para download:
+
+- `mikrotik-config-generator-windows.zip`
+- `mikrotik-config-generator-linux.tar.gz`
+
+No momento, a release automatica esta focada em:
+
+- Windows
+- Linux
+
+O macOS pode ser adicionado depois.
+
+Estrutura local de saida:
+
+- `packages/windows/mikrotik-config-generator-windows.zip`
+- `packages/linux/mikrotik-config-generator-linux.tar.gz`
+
+Fluxo recomendado:
+
+1. envie o codigo atualizado para o GitHub
+2. crie e envie uma tag no formato `v1.0.0`, ou publique uma release com essa tag
+3. aguarde o GitHub Actions terminar os builds
+4. abra ou recarregue a pagina da release
+
+Depois disso, os arquivos de Windows e Linux devem aparecer anexados automaticamente na release publicada.
+
+Observacao:
+
+- o workflow roda tanto em `push` de tag `v*` quanto em `release published`
+- se a release ainda nao existir, o GitHub Actions pode cria-la ao publicar os assets da tag
+- rascunhos de release nao recebem os arquivos automaticamente ate serem publicados
+- se uma release antiga saiu sem os anexos, crie uma nova tag como `v1.0.1` depois de enviar a correcao do workflow
+- o `.exe` do Windows nao pode ser gerado daqui no Linux; ele sera gerado no runner Windows do GitHub Actions ou em uma maquina Windows
+
 ## Estrutura principal
 
 - `main.py`: ponto de entrada

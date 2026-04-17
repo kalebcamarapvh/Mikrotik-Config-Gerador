@@ -4,6 +4,8 @@ from tkinter import messagebox
 
 import customtkinter as ctk
 
+from core.firewall import get_preset_title
+
 
 class SummaryFrame(ctk.CTkFrame):
     def __init__(self, master: ctk.CTkBaseClass, app: ctk.CTk) -> None:
@@ -93,7 +95,7 @@ class SummaryFrame(ctk.CTkFrame):
         lines.extend(
             [
                 "",
-                f"Firewall preset: {self.app.state.firewall.preset.title()}",
+                f"Firewall preset: {get_preset_title(self.app.state.firewall.preset)}",
                 f"Bridge: {self.app.state.bridge.name} ({self.app.state.bridge.protocol.upper()})",
                 f"VLAN filtering: {'on' if self.app.state.bridge.vlan_filtering else 'off'}",
                 "",

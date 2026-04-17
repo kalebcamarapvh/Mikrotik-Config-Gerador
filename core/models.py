@@ -46,24 +46,28 @@ class InterfaceAssignment(BaseModel):
 
 
 class FirewallRules(BaseModel):
-    accept_established: bool = True
-    drop_invalid: bool = True
-    accept_icmp: bool = True
-    accept_lan_input: bool = True
-    masquerade: bool = True
-    port_scan_detection: bool = False
-    ssh_bruteforce: bool = False
-    bogon_drop: bool = False
-    rate_limit_new: bool = False
-    tarpit_offenders: bool = False
-    dns_amplification: bool = False
-    explicit_forward: bool = False
-    log_drops: bool = False
-    raw_table: bool = False
+    input_established_related: bool = True
+    input_drop_invalid: bool = True
+    input_allow_icmp: bool = True
+    input_allow_internal_management: bool = True
+    input_drop_wan_admin: bool = True
+    input_port_scan_guard: bool = False
+    input_bruteforce_guard: bool = False
+    forward_established_related: bool = True
+    forward_drop_invalid: bool = True
+    forward_allow_internal_to_wan: bool = True
+    forward_allow_dstnat: bool = True
+    forward_isolate_vlans: bool = False
+    forward_drop_new_wan: bool = True
+    output_established_related: bool = False
+    output_drop_invalid: bool = False
+    nat_masquerade: bool = True
+    raw_block_dns_wan: bool = False
+    log_wan_drops: bool = False
 
 
 class FirewallConfig(BaseModel):
-    preset: Literal["basic", "medium", "advanced"] = "basic"
+    preset: Literal["basic", "recommended", "advanced"] = "recommended"
     rules: FirewallRules = Field(default_factory=FirewallRules)
 
 

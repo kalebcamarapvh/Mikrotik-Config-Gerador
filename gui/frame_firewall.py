@@ -5,7 +5,16 @@ from tkinter import messagebox
 
 import customtkinter as ctk
 
-from core.firewall import PRESET_DETAILS, RULE_METADATA, build_firewall_config, build_firewall_rules
+from core.firewall import (
+    CHAIN_LABELS,
+    CHAIN_ORDER,
+    PRESET_DETAILS,
+    PRESET_ORDER,
+    RULE_METADATA,
+    build_firewall_rules,
+    get_preset_title,
+    normalize_preset_name,
+)
 from core.models import FirewallConfig, FirewallRules
 
 
@@ -14,7 +23,7 @@ class FirewallFrame(ctk.CTkFrame):
         super().__init__(master)
         self.app = app
         self.rule_vars: dict[str, tk.BooleanVar] = {}
-        self.preset_var = tk.StringVar(value="basic")
+        self.preset_var = tk.StringVar(value="recommended")
 
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(1, weight=1)
@@ -23,10 +32,10 @@ class FirewallFrame(ctk.CTkFrame):
         header.grid(row=0, column=0, sticky="ew", padx=12, pady=12)
         header.grid_columnconfigure((0, 1, 2), weight=1)
 
-        for column, preset in enumerate(["basic", "medium", "advanced"]):
+        for column, preset in enumerate(PRESET_ORDER):
             ctk.CTkRadioButton(
                 header,
-                text=preset.title(),
+                text=get_preset_title(preset),
                 value=preset,
                 variable=self.preset_var,
                 command=self.apply_preset,
@@ -57,7 +66,7 @@ class FirewallFrame(ctk.CTkFrame):
         )
 
     def refresh_from_state(self) -> None:
-        self.preset_var.set(self.app.state.firewall.preset)
+        self.preset_var.set(normalize_preset_name(self.app.state.firewall.preset))
         self._build_rule_checkboxes(self.app.state.firewall.rules)
 
     def apply_preset(self) -> None:
@@ -66,7 +75,7 @@ class FirewallFrame(ctk.CTkFrame):
     def show_preset_details(self) -> None:
         preset = self.preset_var.get()
         details = PRESET_DETAILS[preset]
-        messagebox.showinfo(preset.title(), "\n".join(f"- {item}" for item in details))
+        messagebox.showinfo(details["title"], "\n".join(f"- {item}" for item in details["includes"]))
 
     def save_and_next(self) -> None:
         rules = FirewallRules(
@@ -80,13 +89,43 @@ class FirewallFrame(ctk.CTkFrame):
             child.destroy()
 
         self.rule_vars.clear()
-        for row, (name, label) in enumerate(RULE_METADATA.items()):
-            variable = tk.BooleanVar(value=getattr(rules, name))
-            self.rule_vars[name] = variable
-            ctk.CTkCheckBox(self.rules_frame, text=label, variable=variable).grid(
-                row=row,
-                column=0,
-                sticky="w",
-                padx=12,
-                pady=8,
-            )
+        row = 0
+        for chain in CHAIN_ORDER:
+            ctk.CTkLabel(
+                self.rules_frame,
+                text=CHAIN_LABELS[chain],
+                font=ctk.CTkFont(size=15, weight="bold"),
+            ).grid(row=row, column=0, sticky="w", padx=12, pady=(12, 4))
+            row += 1
+
+            for name, data in RULE_METADATA.items():
+                if data["chain"] != chain:
+                    continue
+
+                variable = tk.BooleanVar(value=getattr(rules, name))
+                self.rule_vars[name] = variable
+
+                line = ctk.CTkFrame(self.rules_frame, fg_color="transparent")
+                line.grid(row=row, column=0, sticky="ew", padx=12, pady=4)
+                line.grid_columnconfigure(1, weight=1)
+
+                ctk.CTkCheckBox(line, text="", variable=variable).grid(
+                    row=0,
+                    column=0,
+                    rowspan=2,
+                    sticky="nw",
+                    padx=(0, 8),
+                    pady=4,
+                )
+                ctk.CTkLabel(
+                    line,
+                    text=data["title"],
+                    font=ctk.CTkFont(weight="bold"),
+                ).grid(row=0, column=1, sticky="w")
+                ctk.CTkLabel(
+                    line,
+                    text=data["description"],
+                    justify="left",
+                    wraplength=640,
+                ).grid(row=1, column=1, sticky="w", pady=(2, 0))
+                row += 1

@@ -6,6 +6,7 @@ from typing import Any, Callable
 
 from jinja2 import Environment, FileSystemLoader
 
+from .firewall import build_firewall_entries, render_firewall_script
 from .models import AppState
 
 
@@ -44,8 +45,9 @@ class Configurator:
         if state.get_lan_interfaces() or state.vlans:
             sections.append(self._render(version_folder, "bridge.rsc.j2", context))
 
-        preset_template = f"firewall_{state.firewall.preset}.rsc.j2"
-        sections.append(self._render(version_folder, preset_template, context))
+        firewall_script = render_firewall_script(state, version_folder)
+        if firewall_script:
+            sections.append(firewall_script)
 
         if state.vlans:
             sections.append(self._render(version_folder, "vlan.rsc.j2", context))
@@ -195,175 +197,15 @@ class Configurator:
         return commands
 
     def _firewall_commands(self, state: AppState) -> list[RouterCommand]:
-        wan_iface = state.get_wan_interface()
-        if not wan_iface:
-            return []
-
-        rules = state.firewall.rules
         commands: list[RouterCommand] = []
-
-        if rules.accept_established:
-            commands.append(
-                self._firewall_filter(
-                    "Accept established input",
-                    chain="input",
-                    comment="mtk-auto accept established input",
-                    **{"connection-state": "established,related", "action": "accept"},
-                )
-            )
-            commands.append(
-                self._firewall_filter(
-                    "Accept established forward",
-                    chain="forward",
-                    comment="mtk-auto accept established forward",
-                    **{"connection-state": "established,related", "action": "accept"},
-                )
-            )
-
-        if rules.drop_invalid:
-            commands.append(
-                self._firewall_filter(
-                    "Drop invalid input",
-                    chain="input",
-                    comment="mtk-auto drop invalid",
-                    **{"connection-state": "invalid", "action": "drop"},
-                )
-            )
-
-        if rules.accept_icmp:
-            commands.append(
-                self._firewall_filter(
-                    "Accept ICMP",
-                    chain="input",
-                    protocol="icmp",
-                    action="accept",
-                    comment="mtk-auto accept icmp",
-                )
-            )
-
-        if rules.accept_lan_input and state.bridge.name:
-            commands.append(
-                self._firewall_filter(
-                    "Accept LAN input",
-                    chain="input",
-                    **{
-                        "in-interface": state.bridge.name,
-                        "action": "accept",
-                        "comment": "mtk-auto accept lan input",
-                    },
-                )
-            )
-
-        if rules.port_scan_detection:
-            commands.append(
-                self._firewall_filter(
-                    "Drop port scans",
-                    chain="input",
-                    protocol="tcp",
-                    **{
-                        "psd": "21,3s,3,1",
-                        "action": "drop",
-                        "comment": "mtk-auto port scan",
-                    },
-                )
-            )
-
-        if rules.ssh_bruteforce:
-            commands.append(
-                self._firewall_filter(
-                    "Protect SSH",
-                    chain="input",
-                    protocol="tcp",
-                    **{
-                        "dst-port": "22",
-                        "connection-limit": "3,32",
-                        "action": "drop",
-                        "comment": "mtk-auto ssh bruteforce",
-                    },
-                )
-            )
-
-        if rules.bogon_drop:
-            commands.append(
-                self._firewall_filter(
-                    "Drop bogons on WAN",
-                    chain="input",
-                    **{
-                        "in-interface": wan_iface,
-                        "src-address-list": "not_in_internet",
-                        "action": "drop",
-                        "comment": "mtk-auto bogon drop",
-                    },
-                )
-            )
-
-        if rules.rate_limit_new:
-            commands.append(
-                self._firewall_filter(
-                    "Rate-limit new input",
-                    chain="input",
-                    **{
-                        "connection-state": "new",
-                        "limit": "50,5:packet",
-                        "action": "accept",
-                        "comment": "mtk-auto rate limit new",
-                    },
-                )
-            )
-
-        if rules.explicit_forward:
-            commands.append(
-                self._firewall_filter(
-                    "Default forward drop",
-                    chain="forward",
-                    **{"action": "drop", "comment": "mtk-auto default forward drop"},
-                )
-            )
-
-        if rules.log_drops:
-            commands.append(
-                self._firewall_filter(
-                    "Log WAN drops",
-                    chain="input",
-                    **{
-                        "in-interface": wan_iface,
-                        "action": "log",
-                        "log-prefix": "MTK-DROP ",
-                        "comment": "mtk-auto log drops",
-                    },
-                )
-            )
-
-        if rules.masquerade:
+        for entry in build_firewall_entries(state, self._version_folder(state)):
             commands.append(
                 RouterCommand(
-                    label="Add NAT masquerade",
-                    path="/ip/firewall/nat/add",
-                    check_path="/ip/firewall/nat/print",
-                    ensure_filters={"comment": "mtk-auto nat masquerade"},
-                    params={
-                        "chain": "srcnat",
-                        "out-interface": wan_iface,
-                        "action": "masquerade",
-                        "comment": "mtk-auto nat masquerade",
-                    },
-                )
-            )
-
-        if rules.raw_table and self._version_folder(state) == "v7":
-            commands.append(
-                RouterCommand(
-                    label="Add raw DNS amplification guard",
-                    path="/ip/firewall/raw/add",
-                    check_path="/ip/firewall/raw/print",
-                    ensure_filters={"comment": "mtk-auto raw dns amp"},
-                    params={
-                        "chain": "prerouting",
-                        "protocol": "udp",
-                        "dst-port": "53",
-                        "action": "drop",
-                        "comment": "mtk-auto raw dns amp",
-                    },
+                    label=entry.label,
+                    path=f"/ip/firewall/{entry.section}/add",
+                    check_path=f"/ip/firewall/{entry.section}/print",
+                    ensure_filters={"comment": entry.comment},
+                    params={**entry.params, "comment": entry.comment},
                 )
             )
 
@@ -406,16 +248,6 @@ class Configurator:
                 )
 
         return commands
-
-    def _firewall_filter(self, label: str, **params: Any) -> RouterCommand:
-        comment = str(params.get("comment", label))
-        return RouterCommand(
-            label=label,
-            path="/ip/firewall/filter/add",
-            check_path="/ip/firewall/filter/print",
-            ensure_filters={"comment": comment},
-            params=params,
-        )
 
     def _exists(self, connection: Any, command: RouterCommand) -> bool:
         if not command.check_path or not command.ensure_filters:
